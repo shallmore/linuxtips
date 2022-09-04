@@ -1,0 +1,53 @@
+问题描述：打不开文件下载页面，尝试重启nginx服务，以下操作都默认以sudo权限。
+systemctl restart nginx
+这时遇到提示：
+Job for nginx.service failed because the control process exited with error code. See "systemctl status nginx.service" and "journalctl -xe" for details.
+检查状态
+systemctl status nginx.service
+发现如下问题：
+nginx: [emerg] open() "/etc/nginx/fastcgi.conf" failed (2: No such file or directory) in /etc/nginx/enable-php.conf:6
+
+尝试解决：
+1. 退回根目录
+cd /
+2. 进入目录
+cd etc/nginx
+3. 查看enable-php.conf文件：
+vi enable-php.conf
+结果如下：
+        location ~ [^/]\.php(/|$)
+        {
+            try_files $uri =404;
+            fastcgi_pass  unix:/tmp/php-cgi.sock;
+            fastcgi_index index.php;
+            include fastcgi.conf;
+        }
+4. 发现没有fastcgi.conf文件，拷贝一个
+cp fastcgi.conf.rpmsave fastcgi.conf
+5. 切回根目录，
+cd /
+6. 重启nginx服务
+systemctl restart nginx
+发现错误，提示：
+Job for nginx.service failed because the control process exited with error code. See "systemctl status nginx.service" and "journalctl -xe" for details.
+7. 执行检察
+systemctl status nginx.service
+发现问题：
+Sep 04 00:10:33 vmi300576.contaboserver.net nginx[24232]: nginx: [emerg] bind() to 0.0.0.0:9000 failed (98: Address already in use)
+Sep 04 00:10:34 vmi300576.contaboserver.net nginx[24232]: nginx: [emerg] still could not bind()
+Sep 04 00:10:34 vmi300576.contaboserver.net systemd[1]: nginx.service: control process exited, code=exited status=1
+Sep 04 00:10:34 vmi300576.contaboserver.net systemd[1]: Failed to start nginx - high performance web server.
+端口已经被占用
+8. 解决掉占用端口
+fuser -k 9000/tcp
+9. 重启nginx服务
+systemctl restart nginx
+正常
+10. 检查服务状态
+systemctl status nginx.service
+提示：
+nginx.service - nginx - high performance web server
+   Loaded: loaded (/usr/lib/systemd/system/nginx.service; enabled; vendor preset: disabled)
+   Active: active (running) since Sun 2022-09-04 00:11:58 CST; 5s ago
+
+重新进入，提示正常。
